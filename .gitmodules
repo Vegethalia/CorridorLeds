@@ -1,3 +1,4 @@
 [submodule "SharedUtils"]
-	path = src/SharedUtils
+	path = SharedUtils
 	url = https://github.com/Vegethalia/Esp32SharedUtils
+
