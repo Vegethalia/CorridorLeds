@@ -175,7 +175,8 @@ void setup()
 	// FastLED.show();
 
 	//now we add the standard led effects
-	_TheGlobalLedConfig.bckR = 1;_TheGlobalLedConfig.bckG = 1; _TheGlobalLedConfig.bckB = 1;
+	_TheGlobalLedConfig.bckR = 1; _TheGlobalLedConfig.bckG = 1; _TheGlobalLedConfig.bckB = 1;
+	//_TheGlobalLedConfig.bckR = 0; _TheGlobalLedConfig.bckG = 0; _TheGlobalLedConfig.bckB = 0;
 	std::unique_ptr<LedEffect_ConstantBackground> effect1 = std::unique_ptr<LedEffect_ConstantBackground>(new LedEffect_ConstantBackground());
 	effect1->SetConfig(&_TheGlobalLedConfig);
 	_TheEffects.push_back(std::move(effect1));
@@ -184,6 +185,7 @@ void setup()
 	AddPulseEffect(1.00f, 224);
 	AddPulseEffect(1.75f, 0);
 	AddPulseEffect(3.00f, 96);
+
 	// std::unique_ptr<LedEffect_Fire2012> effectFire = std::unique_ptr<LedEffect_Fire2012>(new LedEffect_Fire2012());
 	// effectFire->SetConfig(&_TheGlobalLedConfig);
 	// _TheEffects.push_back(std::move(effectFire));

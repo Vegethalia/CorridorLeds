@@ -53,12 +53,15 @@ void LedEffect_MovingPulse::Draw(CRGBArray<NUM_LEDS>& theLeds)
 		centralInt = _pTheConfig->maxPulsePower;
 	}
 
-	int halfWave = _width / 2;
-	uint16_t pos=_currentPos;
-	for(int i = pos; i < pos + halfWave; i++) {
-		byte vWave = centralInt / (halfWave - (i - pos));
+	const int halfWave = _width / 2;
+	const uint16_t pos = _currentPos;
+	const uint16_t centralLed = pos + halfWave;
+	const uint16_t simetricConstant = (2 * pos) + _width;
+	const float powerStep = ((float)centralInt / (float)halfWave);
+	for(int i = pos; i < centralLed; i++) {
+		byte vWave = (i-pos+1)*powerStep;
 		int pixelPos = i % NUM_LEDS;
-		int pixelPosSim = (pos + (pos + halfWave * 2 - i - 1)) % NUM_LEDS;
+		int pixelPosSim = (simetricConstant - i - 1) % NUM_LEDS;
 		if(!_additiveDrawing) {
 			theLeds[pixelPos] = CHSV(_theHue, 255, vWave);
 			theLeds[pixelPosSim] = CHSV(_theHue, 255, vWave);
@@ -68,6 +71,7 @@ void LedEffect_MovingPulse::Draw(CRGBArray<NUM_LEDS>& theLeds)
 			theLeds[pixelPosSim] += CHSV(_theHue, 255, vWave);
 		}
 	}
+
 }
 
 void LedEffect_MovingPulse::Advance()
