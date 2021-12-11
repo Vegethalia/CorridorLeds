@@ -17,7 +17,7 @@
 #define PIN_BTN_G   18
 #define PIN_BTN_B   26
 
-enum LED_EFFECT { BLACK_BKG, RGB_BKG };
+enum LED_EFFECT { PULSE, BIDIR_PULSE };
 
 #define DEF_PULSE_WIDTH 24
 #define DEF_PULSE_POWER 246

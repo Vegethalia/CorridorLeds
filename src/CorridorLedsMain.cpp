@@ -7,8 +7,10 @@
 #include "SharedUtils/OtaUpdater.h"
 #include "mykeys.h" //header containing sensitive information. Not included in repo. You will need to define the missing constants.
 #include <U8g2lib.h>
+#include <list>
 
 #include "defines.h"
+#include "EffectStyles.h"
 #include "LedEffects.h"
 
 //U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, PIN_I2C_SCL, PIN_I2C_SDA);
@@ -40,9 +42,9 @@ bool     _LedsON=false;
 uint32_t _LastMovement=0;
 uint32_t _LastCheck4Wifi=0;
 
-LED_EFFECT _TheEffect = RGB_BKG;
+//LED_EFFECT _TheEffect = RGB_BKG;
 LedEffect::StatusConfig _TheGlobalLedConfig;
-std::vector < std::unique_ptr < LedEffect>> _TheEffects;
+std::list< std::unique_ptr < LedEffect>> _TheEffects;
 
 //
 //Advanced declarations
@@ -64,16 +66,16 @@ void IRAM_ATTR ButtonPressed()
 		int pinValueG = digitalRead(PIN_BTN_G);
 		int pinValueB = digitalRead(PIN_BTN_B);
 
-		if(_TheEffect == RGB_BKG) {
+		// if(_TheEffect == RGB_BKG) {
 			if(pinValueR) _TheGlobalLedConfig.bckR += 1;
 			if(pinValueG) _TheGlobalLedConfig.bckG += 1;
 			if(pinValueB) _TheGlobalLedConfig.bckB += 1;
-		}
-		else if(_TheEffect == BLACK_BKG) {
-			if(pinValueR) _TheGlobalLedConfig.bckR += 1;
-			if(pinValueG && _TheGlobalLedConfig.bckR) _TheGlobalLedConfig.bckR -= 1;
-			if(pinValueB) _TheGlobalLedConfig.bckR = 0;
-		}
+		// }
+		// else if(_TheEffect == BLACK_BKG) {
+		// 	if(pinValueR) _TheGlobalLedConfig.bckR += 1;
+		// 	if(pinValueG && _TheGlobalLedConfig.bckR) _TheGlobalLedConfig.bckR -= 1;
+		// 	if(pinValueB) _TheGlobalLedConfig.bckR = 0;
+		// }
 		_updateNeeded=true;
 	}
 }
@@ -112,6 +114,25 @@ void AddPulseEffect(float speed,  uint8_t hue)
 	_TheEffects.push_back(std::move(effect));
 }
 
+//Adds a Bidirectional Pulse effect to the _Effects array, specifying the speed and the hue of the Pulse
+void AddBiPulseEffect(float speed, uint8_t hue)
+{
+	std::unique_ptr<LedEffect_BidirectionalPulse> effect = std::unique_ptr < LedEffect_BidirectionalPulse>(new LedEffect_BidirectionalPulse(hue, speed));
+	effect->SetConfig(&_TheGlobalLedConfig);
+	_TheEffects.push_back(std::move(effect));
+}
+
+//Adds a random set of effects to the Effects array
+void CreateRandomEffect()
+{
+	//Initial test, create a bidir effect
+	uint8_t combi=random8(g_BackAndBidirPulseCombinations.size()-1);
+	_TheGlobalLedConfig.bckR = g_BackAndBidirPulseCombinations[combi].BackR;
+	_TheGlobalLedConfig.bckG = g_BackAndBidirPulseCombinations[combi].BackG;
+	_TheGlobalLedConfig.bckB = g_BackAndBidirPulseCombinations[combi].BackB;
+
+	AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
+}
 
 bool Connect2WiFi()
 {
@@ -175,16 +196,17 @@ void setup()
 	// FastLED.show();
 
 	//now we add the standard led effects
-	_TheGlobalLedConfig.bckR = 1; _TheGlobalLedConfig.bckG = 1; _TheGlobalLedConfig.bckB = 1;
-	//_TheGlobalLedConfig.bckR = 0; _TheGlobalLedConfig.bckG = 0; _TheGlobalLedConfig.bckB = 0;
-	std::unique_ptr<LedEffect_ConstantBackground> effect1 = std::unique_ptr<LedEffect_ConstantBackground>(new LedEffect_ConstantBackground());
-	effect1->SetConfig(&_TheGlobalLedConfig);
-	_TheEffects.push_back(std::move(effect1));
-	AddPulseEffect(0.50f, 64);
-	AddPulseEffect(0.75f, 128);
-	AddPulseEffect(1.00f, 224);
-	AddPulseEffect(1.75f, 0);
-	AddPulseEffect(3.00f, 96);
+	//_TheGlobalLedConfig.bckR = 1; _TheGlobalLedConfig.bckG = 1; _TheGlobalLedConfig.bckB = 1;
+	_TheGlobalLedConfig.bckR = 0; _TheGlobalLedConfig.bckG = 0; _TheGlobalLedConfig.bckB = 0;
+	 std::unique_ptr<LedEffect_ConstantBackground> effect1 = std::unique_ptr<LedEffect_ConstantBackground>(new LedEffect_ConstantBackground());
+	 effect1->SetConfig(&_TheGlobalLedConfig);
+	 _TheEffects.push_back(std::move(effect1));
+	// AddPulseEffect(0.50f, 64);  //yellow
+	// AddPulseEffect(0.75f, 128); //aqua
+	// AddPulseEffect(1.00f, 224); //pink
+	// AddPulseEffect(1.75f, 0);   //red
+	// AddPulseEffect(3.00f, 96);  //green
+	//AddBiPulseEffect(3.00f, 224);
 
 	// std::unique_ptr<LedEffect_Fire2012> effectFire = std::unique_ptr<LedEffect_Fire2012>(new LedEffect_Fire2012());
 	// effectFire->SetConfig(&_TheGlobalLedConfig);
@@ -275,67 +297,24 @@ void loop()
 		PrintScreen();
 		_updateNeeded = false;
 	}
-	// else if((now - _LastMovement) > (TIME_ON_AFTER_MOVEMENT * 2 * 1000) && !_LedsON) {
-	// 	//u8g2.setPowerSave(1);
-	// }
-	// if(_UpdateRequired) { //Button pressed
-	// 	_bckR++;
-	// 	_bckG++;
-	// 	_bckB++;
-	// 	log_d("Button pressed. RGB=(%d,%d,%d)", _bckR, _bckG, _bckB);
-	// 	_UpdateRequired=false;
-	// }
-
-  // static uint8_t hue=0;
-	// _TheLeds(0, NUM_LEDS - 1).fill_rainbow(hue);  // fill the first 20 items with a rainbow
-	// hue+=5;
-	// // _TheLeds(NUM_LEDS / 2, NUM_LEDS - 1) = _TheLeds(NUM_LEDS / 2 - 1, 0);
-  // 	FastLED.delay(20);
-
-	// _TheLeds[0] = CRGB::Blue;
-	// _TheLeds[1] = CRGB::Green;
-	// _TheLeds[2] = CRGB::Red;
-	// FastLED.delay(500);
-	// _TheLeds[0] = CRGB::Black;
-	// _TheLeds[1] = CRGB::Black;
-	// _TheLeds[2] = CRGB::Black;
-	// FastLED.delay(500);
-
-	// int max_leds = 30;
-	// static uint8_t v=10;
-	// static int dir=1;
-	// _TheLeds(0, max_leds)=CHSV(160, 255, v);
-	// v+=dir;
-	// if(v>=128) {
-	// 	dir=-1;
-	// }
-	// else if(v<=1) {
-	// 	dir=+1;
-	// }
-	// FastLED.delay(20);
-	//for
-
-// 	static int hue=1;
-// 	for(int i=0; i<NUM_LEDS; i++) {
-// 		_TheLeds[i] = CHSV(hue, 255, 128);
-// 	}
-// 	FastLED.delay(20);
-// 	hue++;
-
-//  static int hue=1;
-// 	for(int i=0; i<NUM_LEDS; i++) {
-// 		_TheLeds[i] = CHSV(hue, i*4, 128);
-// 	}
-// 	FastLED.delay(20);
-// 	hue++;
 
 	if((now - _LastMovement) > (TIME_ON_AFTER_MOVEMENT * 1000) && _LedsON) {
 		log_d("[%d] Turning off the leds", now);
 		digitalWrite(PIN_RELAY, HIGH);
 		_LedsON=false;
 		_updateNeeded = true;
-		//_Wave1.Reset();	_Wave2.Reset();	_Wave3.Reset();	_Wave4.Reset(); _Wave5.Reset();
 		u8g2.setPowerSave(1);
+
+		//check if any effect must be deleted on turn off
+		auto it = _TheEffects.begin();
+		while(it != _TheEffects.end()) {
+			if((*it)->DeleteOnTurnOff()) {
+				it = _TheEffects.erase(it);
+			}
+			else {
+				++it;
+			}
+		}
 	}
 	else if((now - _LastMovement) < (TIME_ON_AFTER_MOVEMENT * 1000)) {
 		if(!_LedsON) {
@@ -343,6 +322,8 @@ void loop()
 			_lastUpdate = now;
 			_updateNeeded = true; //només 1 cop
 			u8g2.begin();
+
+			CreateRandomEffect();
 		}
 		_LedsON=true;
 		digitalWrite(PIN_RELAY, LOW);
@@ -350,9 +331,16 @@ void loop()
 
 	if(_LedsON && (now - _lastUpdate) >= UPDATE_EVERY_MS) {
 		//_lastUpdate = millis();
-		for(int i=0; i<_TheEffects.size(); i++) {
-			_TheEffects[i]->Draw(_TheLeds);
-			_TheEffects[i]->Advance();
+		auto it=_TheEffects.begin();
+		while(it!=_TheEffects.end()) {
+			(*it)->Draw(_TheLeds);
+			(*it)->Advance();
+			if((*it)->IsFinished()) {
+				it = _TheEffects.erase(it);
+			}
+			else {
+				++it;
+			}
 		}
 
 		FastLED.show();

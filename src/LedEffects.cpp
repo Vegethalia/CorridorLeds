@@ -28,6 +28,10 @@ void LedEffect_ConstantBackground::Advance()
 	//nothing to do
 }
 
+void LedEffect_ConstantBackground::Reset()
+{
+	//nothing to do
+}
 
 /////////////////////////////////////////
 /// LedEffect_MovingPulse
@@ -48,35 +52,73 @@ LedEffect_MovingPulse::~LedEffect_MovingPulse()
 
 void LedEffect_MovingPulse::Draw(CRGBArray<NUM_LEDS>& theLeds)
 {
-	uint8_t centralInt=DEF_PULSE_POWER;
+	uint8_t centralInt = DEF_PULSE_POWER;
 	if(_pTheConfig) {
 		centralInt = _pTheConfig->maxPulsePower;
 	}
+	DrawAtPos(theLeds, _currentPos, centralInt);
+}
 
+void LedEffect_MovingPulse::DrawAtPos(CRGBArray<NUM_LEDS>& theLeds, float thePos, uint8_t theMaxInt)
+{
 	const int halfWave = _width / 2;
-	const uint16_t pos = _currentPos;
+	const uint16_t pos = thePos;
 	const uint16_t centralLed = pos + halfWave;
 	const uint16_t simetricConstant = (2 * pos) + _width;
-	const float powerStep = ((float)centralInt / (float)halfWave);
+	const uint8_t theHue=_theHue;
+	const float powerStep = ((float)theMaxInt / (float)halfWave);
 	for(int i = pos; i < centralLed; i++) {
-		byte vWave = (i-pos+1)*powerStep;
+		byte vWave = (i - pos + 1) * powerStep;
 		int pixelPos = i % NUM_LEDS;
 		int pixelPosSim = (simetricConstant - i - 1) % NUM_LEDS;
 		if(!_additiveDrawing) {
-			theLeds[pixelPos] = CHSV(_theHue, 255, vWave);
-			theLeds[pixelPosSim] = CHSV(_theHue, 255, vWave);
+			theLeds[pixelPos] = CHSV(theHue, 255, vWave);
+			theLeds[pixelPosSim] = CHSV(theHue, 255, vWave);
 		}
 		else {
-			theLeds[pixelPos] += CHSV(_theHue, 255, vWave);
-			theLeds[pixelPosSim] += CHSV(_theHue, 255, vWave);
+			theLeds[pixelPos] += CHSV(theHue, 255, vWave);
+			theLeds[pixelPosSim] += CHSV(theHue, 255, vWave);
 		}
 	}
-
 }
 
 void LedEffect_MovingPulse::Advance()
 {
 	_currentPos+=_speed;
+	if(_currentPos >= NUM_LEDS) {
+		_currentPos -= NUM_LEDS;
+	}
+}
+
+void LedEffect_MovingPulse::Reset()
+{
+	_IsFinished=false; //this effect never finishes...
+	_currentPos = 0.0f;
+}
+
+/////////////////////////////////////////
+/// LedEffect_BidirectionalPulse
+/////////////////////////////////////////
+LedEffect_BidirectionalPulse::LedEffect_BidirectionalPulse(uint8_t hue, float speed, uint8_t width, bool additive)
+	:LedEffect_MovingPulse(hue, speed, width, additive)
+{
+	_currentPos=width/2;
+	_DeleteOnTurnOff=true;
+}
+
+LedEffect_BidirectionalPulse::~LedEffect_BidirectionalPulse()
+{
+
+}
+
+void LedEffect_BidirectionalPulse::Draw(CRGBArray<NUM_LEDS>& theLeds)
+{
+	uint8_t centralInt = DEF_PULSE_POWER;
+	if(_pTheConfig) {
+		centralInt = _pTheConfig->maxPulsePower;
+	}
+	DrawAtPos(theLeds, _currentPos, centralInt);
+	DrawAtPos(theLeds, NUM_LEDS - _currentPos, centralInt*0.75);
 }
 
 /////////////////////////////////////////
@@ -130,6 +172,10 @@ void LedEffect_Fire2012::Draw(CRGBArray<NUM_LEDS>& theLeds)
 }
 
 void LedEffect_Fire2012::Advance()
+{
+	//nothing to do
+}
+void LedEffect_Fire2012::Reset()
 {
 	//nothing to do
 }
