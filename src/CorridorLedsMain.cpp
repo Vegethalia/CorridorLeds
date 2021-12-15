@@ -125,13 +125,33 @@ void AddBiPulseEffect(float speed, uint8_t hue)
 //Adds a random set of effects to the Effects array
 void CreateRandomEffect()
 {
+	LED_EFFECT eff = (LED_EFFECT)(millis()%(LED_EFFECT::MAX_EFFECT+1));
 	//Initial test, create a bidir effect
-	uint8_t combi=random8(g_BackAndBidirPulseCombinations.size()-1);
-	_TheGlobalLedConfig.bckR = g_BackAndBidirPulseCombinations[combi].BackR;
-	_TheGlobalLedConfig.bckG = g_BackAndBidirPulseCombinations[combi].BackG;
-	_TheGlobalLedConfig.bckB = g_BackAndBidirPulseCombinations[combi].BackB;
 
-	AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
+	switch(eff) {
+		case LED_EFFECT::PULSE:
+			_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 3;
+			AddPulseEffect(0.50f, HSVHue::HUE_YELLOW);  //yellow
+			AddPulseEffect(0.75f, HSVHue::HUE_AQUA); //aqua
+			AddPulseEffect(1.00f, HSVHue::HUE_PINK); //pink
+			AddPulseEffect(1.75f, HSVHue::HUE_RED);   //red
+			AddPulseEffect(3.00f, HSVHue::HUE_GREEN);  //green
+			break;
+		case LED_EFFECT::BIDIR_PULSE:
+			uint8_t combi = random8(g_BackAndBidirPulseCombinations.size());
+			bool gray = random8(2)==1?true:false;
+			if(gray) {
+				_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 3;
+			}
+			else {
+				_TheGlobalLedConfig.bckR = g_BackAndBidirPulseCombinations[combi].BackR;
+				_TheGlobalLedConfig.bckG = g_BackAndBidirPulseCombinations[combi].BackG;
+				_TheGlobalLedConfig.bckB = g_BackAndBidirPulseCombinations[combi].BackB;
+			}
+
+			AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
+			break;
+	}
 }
 
 bool Connect2WiFi()
@@ -182,6 +202,8 @@ void setup()
 
 	FastLED.addLeds<WS2812B, DATA_PIN, GRB>(_TheLeds, NUM_LEDS);
 	//	FastLED.setBrightness(4);
+	FastLED.setTemperature(ColorTemperature::DirectSunlight);
+	random16_set_seed(millis());
 
 	// for(int i = 0; i < NUM_LEDS/2; i++) {
 	// 	if((i % 3) == 0) {
@@ -262,19 +284,6 @@ void PrintScreen()
 		snprintf(buff, sizeof(buff), "OTA=%s", msgOta);                                   u8g2.drawStr(0, 43, buff);
 		snprintf(buff, sizeof(buff), "IP=[%s]", WiFi.isConnected() ? WiFi.localIP().toString().c_str() : "Not Connected");  u8g2.drawStr(0, 54, buff);
 		snprintf(buff, sizeof(buff), "LastUpt=%u", (int)millis());                        u8g2.drawStr(0, 63, buff);
-
-
-		// u8g2.setFont(u8g2_font_profont10_mf);
-		// u8g2.drawStr(0, 6, "Soc Peque 6px");
-		// u8g2.setFont(u8g2_font_ncenB14_tr);
-		// u8g2.drawStr(0, 24, "Hola Bola!");
-		// //u8g2.setFont(u8g2_font_tom_thumb_4x6_mf);
-		// u8g2.setFont(u8g2_font_crox1h_tf);
-		// u8g2.drawStr(0, 38, "Soc Gran 13px");
-		// // u8g2.setFont(u8g2_font_p01type_tf);
-		// // u8g2.drawStr(64, 30, "Soc Peque 4px");
-		// u8g2.setFont(u8g2_font_open_iconic_check_2x_t);
-		// u8g2.drawStr(32, 60, "ABCDE");
 	} while(u8g2.nextPage());
 
 	// _lastRepaint=millis();

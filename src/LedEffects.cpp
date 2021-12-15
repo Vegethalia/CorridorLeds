@@ -43,6 +43,8 @@ LedEffect_MovingPulse::LedEffect_MovingPulse(uint8_t hue, float speed, uint8_t w
 	_speed=speed;
 	_currentPos=0.0f;
 	_additiveDrawing=additive;
+
+	_DeleteOnTurnOff = true;
 }
 
 LedEffect_MovingPulse::~LedEffect_MovingPulse()
