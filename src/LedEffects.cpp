@@ -34,6 +34,42 @@ void LedEffect_ConstantBackground::Reset()
 }
 
 /////////////////////////////////////////
+/// LedEffect_Rainbow
+/////////////////////////////////////////
+LedEffect_Rainbow::LedEffect_Rainbow(float speed)
+	:_currentPos(0.0f)
+	, _speed(speed)
+{
+	_DeleteOnTurnOff = true;
+}
+
+LedEffect_Rainbow::~LedEffect_Rainbow()
+{
+
+}
+
+void LedEffect_Rainbow::Draw(CRGBArray<NUM_LEDS>& theLeds)
+{
+	if(!_pTheConfig) {
+		return;
+	}
+	fill_rainbow(theLeds, NUM_LEDS, (uint8_t)_currentPos, (uint8_t)_speed);
+}
+
+void LedEffect_Rainbow::Advance()
+{
+	_currentPos+=_speed;
+	if(_currentPos>255) {
+		_currentPos = 0.0f;
+	}
+}
+
+void LedEffect_Rainbow::Reset()
+{
+	_currentPos=0.0;
+}
+
+/////////////////////////////////////////
 /// LedEffect_MovingPulse
 /////////////////////////////////////////
 LedEffect_MovingPulse::LedEffect_MovingPulse(uint8_t hue, float speed, uint8_t width, bool additive)

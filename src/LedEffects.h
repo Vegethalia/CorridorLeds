@@ -58,6 +58,27 @@ public:
 	virtual void Reset() override;
 };
 
+class LedEffect_Rainbow : public LedEffect
+{
+public:
+	LedEffect_Rainbow(float speed);
+	virtual ~LedEffect_Rainbow();
+
+public:
+	///Call to draw the current effect into the passed Led Strip
+	virtual void Draw(CRGBArray<NUM_LEDS>& theLeds) override;
+	///Call to advance this effect to the next state
+	virtual void Advance() override;
+	///Call to reinit the effect to its starting state.
+	///If called after IsFinished is true, the effect will run again.
+	///When implementing it in child classes, remember to set _IsFinished to false.
+	virtual void Reset() override;
+
+protected:
+	float _currentPos;
+	float _speed;
+};
+
 class LedEffect_MovingPulse : public LedEffect
 {
 public:

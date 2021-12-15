@@ -41,6 +41,7 @@ float    _fps=0;
 bool     _LedsON=false;
 uint32_t _LastMovement=0;
 uint32_t _LastCheck4Wifi=0;
+uint32_t _LastPowerMilliamps=0;
 
 //LED_EFFECT _TheEffect = RGB_BKG;
 LedEffect::StatusConfig _TheGlobalLedConfig;
@@ -122,11 +123,20 @@ void AddBiPulseEffect(float speed, uint8_t hue)
 	_TheEffects.push_back(std::move(effect));
 }
 
+void AddRainbow(float speed)
+{
+	std::unique_ptr<LedEffect_Rainbow> effect = std::unique_ptr < LedEffect_Rainbow>(new LedEffect_Rainbow(speed));
+	effect->SetConfig(&_TheGlobalLedConfig);
+	_TheEffects.push_back(std::move(effect));
+}
+
 //Adds a random set of effects to the Effects array
 void CreateRandomEffect()
 {
 	LED_EFFECT eff = (LED_EFFECT)(millis()%(LED_EFFECT::MAX_EFFECT+1));
 	//Initial test, create a bidir effect
+
+	//eff = LED_EFFECT::RAINBOW;
 
 	switch(eff) {
 		case LED_EFFECT::PULSE:
@@ -138,6 +148,7 @@ void CreateRandomEffect()
 			AddPulseEffect(3.00f, HSVHue::HUE_GREEN);  //green
 			break;
 		case LED_EFFECT::BIDIR_PULSE:
+		{
 			uint8_t combi = random8(g_BackAndBidirPulseCombinations.size());
 			bool gray = random8(2)==1?true:false;
 			if(gray) {
@@ -150,6 +161,11 @@ void CreateRandomEffect()
 			}
 
 			AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
+			break;
+		}
+		case LED_EFFECT::RAINBOW:
+			_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 0;
+			AddRainbow(4.00f);
 			break;
 	}
 }
@@ -203,6 +219,7 @@ void setup()
 	FastLED.addLeds<WS2812B, DATA_PIN, GRB>(_TheLeds, NUM_LEDS);
 	//	FastLED.setBrightness(4);
 	FastLED.setTemperature(ColorTemperature::DirectSunlight);
+	FastLED.setMaxPowerInVoltsAndMilliamps(5, 1000);              // FastLED power management set at 5V, 500mA
 	random16_set_seed(millis());
 
 	// for(int i = 0; i < NUM_LEDS/2; i++) {
