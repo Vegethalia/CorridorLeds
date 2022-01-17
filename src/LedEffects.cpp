@@ -135,6 +135,88 @@ void LedEffect_MovingPulse::Reset()
 }
 
 /////////////////////////////////////////
+/// LedEffect_MovingBanner
+/////////////////////////////////////////
+LedEffect_MovingBanner::LedEffect_MovingBanner(const std::vector<uint8_t>& bands, uint8_t maxBrightness, bool sameBrightness, float speed)
+{
+	_speed = speed;
+	_currentPos = 0.0f;
+
+	//create the bands
+	const uint16_t numBands=min((int)bands.size(), NUM_LEDS);
+	const float bandSize = (float)NUM_LEDS / (float)numBands;
+
+	float fled = 0.0f;
+	int iband = 0;
+
+	if(sameBrightness) {
+		for(; fled<(float)(NUM_LEDS); fled+=bandSize, iband++) {
+			for(int iled = (int)fled; iled < (int)fled+bandSize; iled++) {
+				_TheHues[iled] = CHSV(bands[iband], 255, maxBrightness);
+			}
+		}
+	}
+	else {
+		int halfBand=bandSize/2;
+		if(halfBand%2==1) {
+			halfBand++;
+		}
+		float stepPower=maxBrightness/halfBand;
+		for(; fled < (float)(NUM_LEDS); fled += bandSize, iband++) {
+			float bright = stepPower;
+			for(int iled = (int)fled, iPow=0; iled < (int)fled + bandSize; iled++, iPow++) {
+				if(iPow<halfBand) {
+					bright+=stepPower;
+				}
+				else {
+					bright-=stepPower;
+				}
+				_TheHues[iled] = CHSV(bands[iband], 255, (uint8_t)bright);
+			}
+		}
+
+	}
+
+	_DeleteOnTurnOff = true;
+}
+
+LedEffect_MovingBanner::~LedEffect_MovingBanner()
+{
+
+}
+
+void LedEffect_MovingBanner::Draw(CRGBArray<NUM_LEDS>& theLeds)
+{
+	DrawAtPos(theLeds, _currentPos);
+}
+
+void LedEffect_MovingBanner::DrawAtPos(CRGBArray<NUM_LEDS>& theLeds, float thePos)
+{
+	int iPos=(int)thePos;
+	for(int i=0; i<NUM_LEDS; i++) {
+		theLeds[i] = _TheHues[iPos];
+		iPos++;
+		if(iPos>=NUM_LEDS) {
+			iPos=0;
+		}
+	}
+}
+
+void LedEffect_MovingBanner::Advance()
+{
+	_currentPos += _speed;
+	if(_currentPos >= NUM_LEDS) {
+		_currentPos = (float)(((int)_currentPos)%NUM_LEDS);
+	}
+}
+
+void LedEffect_MovingBanner::Reset()
+{
+	_IsFinished = false; //this effect never finishes...
+	_currentPos = 0.0f;
+}
+
+/////////////////////////////////////////
 /// LedEffect_BidirectionalPulse
 /////////////////////////////////////////
 LedEffect_BidirectionalPulse::LedEffect_BidirectionalPulse(uint8_t hue, float speed, uint8_t width, bool additive)

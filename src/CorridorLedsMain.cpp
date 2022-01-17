@@ -27,6 +27,7 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, PIN_I2C_SCL, PIN_I2C_SDA);
 
 #define RETRY_WIFI_EVERY_SECS 60
 #define PROCESS_OTA_EVERY_MS  2500
+#define CHECK_FOR_OTA_TIME    (5*60*1000) //only process OTA the first 5 minutes after boot
 
 //CRGB _TheLeds[NUM_LEDS];
 CRGBArray<NUM_LEDS>  _TheLeds;
@@ -130,13 +131,27 @@ void AddRainbow(float speed)
 	_TheEffects.push_back(std::move(effect));
 }
 
+void AddMovingBanner(float speed)
+{
+	std::vector<uint8_t> bands = {
+		HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
+		HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
+		HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
+		HSVHue::HUE_YELLOW, HSVHue::HUE_RED}; //last yellow is the first one
+	std::unique_ptr<LedEffect_MovingBanner> effect = std::unique_ptr < LedEffect_MovingBanner>(new LedEffect_MovingBanner(bands, _TheGlobalLedConfig.maxPulsePower, false, speed));
+	effect->SetConfig(&_TheGlobalLedConfig);
+	_TheEffects.push_back(std::move(effect));
+}
+
 //Adds a random set of effects to the Effects array
 void CreateRandomEffect()
 {
 	LED_EFFECT eff = (LED_EFFECT)(millis()%(LED_EFFECT::MAX_EFFECT+1));
 	//Initial test, create a bidir effect
 
-	//eff = LED_EFFECT::RAINBOW;
+	if(millis() < CHECK_FOR_OTA_TIME) {
+		eff = LED_EFFECT::MOVING_BANNER;
+	}
 
 	switch(eff) {
 		case LED_EFFECT::PULSE:
@@ -163,9 +178,12 @@ void CreateRandomEffect()
 			AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
 			break;
 		}
+		case LED_EFFECT::MOVING_BANNER:
+			AddMovingBanner(2.00f);
+			break;
 		case LED_EFFECT::RAINBOW:
 			_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 0;
-			AddRainbow(4.00f);
+			AddRainbow(2.00f);
 			break;
 	}
 }
@@ -219,7 +237,7 @@ void setup()
 	FastLED.addLeds<WS2812B, DATA_PIN, GRB>(_TheLeds, NUM_LEDS);
 	//	FastLED.setBrightness(4);
 	FastLED.setTemperature(ColorTemperature::DirectSunlight);
-	FastLED.setMaxPowerInVoltsAndMilliamps(5, 1000);              // FastLED power management set at 5V, 500mA
+	FastLED.setMaxPowerInVoltsAndMilliamps(5, 1500);              // FastLED power management set at 5V, 1500mA
 	random16_set_seed(millis());
 
 	// for(int i = 0; i < NUM_LEDS/2; i++) {
@@ -240,6 +258,7 @@ void setup()
 	 std::unique_ptr<LedEffect_ConstantBackground> effect1 = std::unique_ptr<LedEffect_ConstantBackground>(new LedEffect_ConstantBackground());
 	 effect1->SetConfig(&_TheGlobalLedConfig);
 	 _TheEffects.push_back(std::move(effect1));
+
 	// AddPulseEffect(0.50f, 64);  //yellow
 	// AddPulseEffect(0.75f, 128); //aqua
 	// AddPulseEffect(1.00f, 224); //pink
@@ -309,6 +328,7 @@ void PrintScreen()
 void loop()
 {
 	auto now=millis();
+	//now<CHECK_FOR_OTA_TIME &&
 	if((now - _LastCheck4Wifi) > PROCESS_OTA_EVERY_MS) {
 		if(Connect2WiFi()) { //Recheck wifi connection. Returns true when wifi was down and now is up
 			_OTA.Begin();

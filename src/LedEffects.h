@@ -112,6 +112,36 @@ protected:
 	bool _additiveDrawing;
 };
 
+class LedEffect_MovingBanner : public LedEffect
+{
+public:
+	//Initializes the moving banner effect with a given set of color bands (in hue value),
+	//and the speed in "leds_per_update". The speed can be a decimal number.
+	//If bands must have a "pulse" look (dimmer in the corners), pass false to sameBrightness.
+	//The maximum intensity (the intensity in the central led) is globally defined in the StatusConfig.
+	LedEffect_MovingBanner(const std::vector<uint8_t> &bands, uint8_t maxBrightness, bool sameBrightness=false, float speed = DEF_PULSE_SPEED);
+	virtual ~LedEffect_MovingBanner();
+
+public:
+	///Call to draw the current effect into the passed Led Strip
+	virtual void Draw(CRGBArray<NUM_LEDS>& theLeds) override;
+	///Call to advance this effect to the next state
+	virtual void Advance() override;
+	///Call to reinit the effect to its starting state.
+	///If called after IsFinished is true, the effect will run again.
+	///When implementing it in child classes, remember to set _IsFinished to false.
+	virtual void Reset() override;
+
+protected:
+	///Performs the actual drawing, the initial led in _TheHues is passed as parameter.
+	void DrawAtPos(CRGBArray<NUM_LEDS>& theLeds, float thePos);
+
+protected:
+	CHSV _TheHues[NUM_LEDS];
+	float _currentPos;
+	float _speed;
+};
+
 class LedEffect_BidirectionalPulse : public LedEffect_MovingPulse
 {
 public:
