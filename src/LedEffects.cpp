@@ -171,6 +171,7 @@ LedEffect_MovingBanner::LedEffect_MovingBanner(const std::vector<uint8_t>& bands
 				else {
 					bright-=stepPower;
 				}
+				//bright = max(bright/25.0f, bright);
 				_TheHues[iled] = CHSV(bands[iband], 255, (uint8_t)bright);
 			}
 		}

@@ -6,15 +6,17 @@
 #include <FastLED.h>
 #include "SharedUtils/OtaUpdater.h"
 #include "mykeys.h" //header containing sensitive information. Not included in repo. You will need to define the missing constants.
-#include <U8g2lib.h>
 #include <list>
 
 #include "defines.h"
 #include "EffectStyles.h"
 #include "LedEffects.h"
 
+#ifdef WITH_SCREEN
+#include <U8g2lib.h>
 //U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, PIN_I2C_SCL, PIN_I2C_SDA);
 U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, PIN_I2C_SCL, PIN_I2C_SDA);
+#endif
 
 #include "mykeys.h" //header containing sensitive information. Not included in repo. You will need to define the missing constants.
 
@@ -40,7 +42,8 @@ uint32_t _numCicles=0;
 float    _fps=0;
 
 bool     _LedsON=false;
-uint32_t _LastMovement=0;
+volatile bool     _movementDetected=false;
+volatile uint32_t _LastMovement=0;
 uint32_t _LastCheck4Wifi=0;
 uint32_t _LastPowerMilliamps=0;
 
@@ -91,6 +94,7 @@ void IRAM_ATTR MovementDetected()
 		//log_d("[%d] Pin value=%d", (int)millis(), pinValue);
 
 		_LastMovement = millis();
+		_movementDetected = true;
 	}
 }
 
@@ -105,6 +109,7 @@ void IRAM_ATTR MovementDetectedDoppler()
 		//log_d("[%d] Pin value=%d", (int)millis(), pinValue);
 
 		_LastMovement = millis();
+		_movementDetected = true;
 	}
 }
 
@@ -131,13 +136,27 @@ void AddRainbow(float speed)
 	_TheEffects.push_back(std::move(effect));
 }
 
-void AddMovingBanner(float speed)
+void AddMovingBanner(float speed, std::vector<uint8_t>& bands)
 {
-	std::vector<uint8_t> bands = {
-		HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
-		HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
-		HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
-		HSVHue::HUE_YELLOW, HSVHue::HUE_RED}; //last yellow is the first one
+	// std::vector<uint8_t> bands = {
+	// 	HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
+	// 	HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
+	// 	HSVHue::HUE_YELLOW, HSVHue::HUE_RED,
+	// 	HSVHue::HUE_YELLOW, HSVHue::HUE_RED}; //last yellow is the first one
+	if(bands.size()<=2) {
+		bands.clear();
+		const uint8_t max_colors=8;
+		uint8_t col1 = random8(0, max_colors);
+		uint8_t col2 = random8(0, max_colors);
+		if(col1==col2) {
+			col2=(col1+1)%8;
+		}
+		for(uint8_t i=0; i<4; i++) {
+			bands.push_back(col1);
+			bands.push_back(col2);
+		}
+	}
+
 	std::unique_ptr<LedEffect_MovingBanner> effect = std::unique_ptr < LedEffect_MovingBanner>(new LedEffect_MovingBanner(bands, _TheGlobalLedConfig.maxPulsePower, false, speed));
 	effect->SetConfig(&_TheGlobalLedConfig);
 	_TheEffects.push_back(std::move(effect));
@@ -146,28 +165,29 @@ void AddMovingBanner(float speed)
 //Adds a random set of effects to the Effects array
 void CreateRandomEffect()
 {
-	LED_EFFECT eff = (LED_EFFECT)(millis()%(LED_EFFECT::MAX_EFFECT+1));
+	LED_EFFECT eff = (LED_EFFECT)(random8(LED_EFFECT::MAX_EFFECT+1));
+	uint8_t combi=0;
 	//Initial test, create a bidir effect
 
 	if(millis() < CHECK_FOR_OTA_TIME) {
-		eff = LED_EFFECT::MOVING_BANNER;
+		eff = LED_EFFECT::RAINBOW;
 	}
 
 	switch(eff) {
 		case LED_EFFECT::PULSE:
-			_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 3;
-			AddPulseEffect(0.50f, HSVHue::HUE_YELLOW);  //yellow
-			AddPulseEffect(0.75f, HSVHue::HUE_AQUA); //aqua
-			AddPulseEffect(1.00f, HSVHue::HUE_PINK); //pink
-			AddPulseEffect(1.75f, HSVHue::HUE_RED);   //red
-			AddPulseEffect(3.00f, HSVHue::HUE_GREEN);  //green
+			_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 5;
+			AddPulseEffect(0.50f, HSVHue::HUE_YELLOW);  //yellow 1
+			AddPulseEffect(1.00f, HSVHue::HUE_AQUA); //aqua2
+			AddPulseEffect(1.50f, HSVHue::HUE_PINK); //pink3
+			AddPulseEffect(2.00f, HSVHue::HUE_RED);   //red4.5
+			AddPulseEffect(3.00f, HSVHue::HUE_GREEN);  //green7
 			break;
 		case LED_EFFECT::BIDIR_PULSE:
 		{
-			uint8_t combi = random8(g_BackAndBidirPulseCombinations.size());
+			combi = random8(g_BackAndBidirPulseCombinations.size());
 			bool gray = random8(2)==1?true:false;
 			if(gray) {
-				_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 3;
+				_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 5;
 			}
 			else {
 				_TheGlobalLedConfig.bckR = g_BackAndBidirPulseCombinations[combi].BackR;
@@ -175,15 +195,21 @@ void CreateRandomEffect()
 				_TheGlobalLedConfig.bckB = g_BackAndBidirPulseCombinations[combi].BackB;
 			}
 
-			AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
+			//AddBiPulseEffect(3.00f, g_BackAndBidirPulseCombinations[combi].PulseHue);
+			AddBiPulseEffect(random8(DEF_PULSE_SPEED, MAX_PULSE_SPEED), g_BackAndBidirPulseCombinations[combi].PulseHue);
 			break;
 		}
 		case LED_EFFECT::MOVING_BANNER:
-			AddMovingBanner(2.00f);
+			combi = random8(g_BannerCombinations.size());
+
+			//AddMovingBanner(2.00f, g_BannerCombinations[combi]);
+			AddMovingBanner(random8(DEF_PULSE_SPEED, DEF_PULSE_SPEED * 2), g_BannerCombinations[combi]);
 			break;
 		case LED_EFFECT::RAINBOW:
 			_TheGlobalLedConfig.bckR = _TheGlobalLedConfig.bckG = _TheGlobalLedConfig.bckB = 0;
-			AddRainbow(2.00f);
+
+			//AddMovingBanner(2.00f, g_BannerCombinations[combi]);
+			AddRainbow(random8(DEF_PULSE_SPEED, DEF_PULSE_SPEED * 2));
 			break;
 	}
 }
@@ -218,17 +244,19 @@ void setup()
 	// wait for serial monitor to open
 	while(!Serial);
 
+#ifdef WITH_SCREEN
 	log_d("Begin Display...");
 	u8g2.begin();
 	u8g2.setContrast(1);
 	PrintScreen();
 	_updateNeeded=true;
+#endif
 
 	//pinMode(PIN_LED, OUTPUT);
-	pinMode(PIN_BTN_R, INPUT);
-	pinMode(PIN_BTN_G, INPUT);
-	pinMode(PIN_BTN_B, INPUT);
-	pinMode(PIN_PIR, INPUT);
+	// pinMode(PIN_BTN_R, INPUT);
+	// pinMode(PIN_BTN_G, INPUT);
+	// pinMode(PIN_BTN_B, INPUT);
+	// pinMode(PIN_PIR, INPUT);
 	pinMode(PIN_DOPPLER, INPUT);
 	pinMode(PIN_RELAY, OUTPUT);
 
@@ -237,7 +265,7 @@ void setup()
 	FastLED.addLeds<WS2812B, DATA_PIN, GRB>(_TheLeds, NUM_LEDS);
 	//	FastLED.setBrightness(4);
 	FastLED.setTemperature(ColorTemperature::DirectSunlight);
-	FastLED.setMaxPowerInVoltsAndMilliamps(5, 1500);              // FastLED power management set at 5V, 1500mA
+	FastLED.setMaxPowerInVoltsAndMilliamps(5, TARGET_CURRENT);              // FastLED power management set at 5V, 1500mA
 	random16_set_seed(millis());
 
 	// for(int i = 0; i < NUM_LEDS/2; i++) {
@@ -270,11 +298,10 @@ void setup()
 	// effectFire->SetConfig(&_TheGlobalLedConfig);
 	// _TheEffects.push_back(std::move(effectFire));
 
-
-	attachInterrupt(PIN_BTN_R, ButtonPressed, RISING);
-	attachInterrupt(PIN_BTN_G, ButtonPressed, RISING);
-	attachInterrupt(PIN_BTN_B, ButtonPressed, RISING);
-	attachInterrupt(PIN_PIR, MovementDetected, RISING);
+	// attachInterrupt(PIN_BTN_R, ButtonPressed, RISING);
+	// attachInterrupt(PIN_BTN_G, ButtonPressed, RISING);
+	// attachInterrupt(PIN_BTN_B, ButtonPressed, RISING);
+	// attachInterrupt(PIN_PIR, MovementDetected, RISING);
 	attachInterrupt(PIN_DOPPLER, MovementDetectedDoppler, CHANGE);
 
 	_OTA.Setup();
@@ -286,6 +313,7 @@ void setup()
 
 void PrintScreen()
 {
+#ifdef WITH_SCREEN
  	char buff[30];
 	uint8_t percent=0;
 	char msgOta[30];
@@ -323,6 +351,7 @@ void PrintScreen()
 	} while(u8g2.nextPage());
 
 	// _lastRepaint=millis();
+#endif
 }
 
 void loop()
@@ -346,10 +375,12 @@ void loop()
 
 	if((now - _LastMovement) > (TIME_ON_AFTER_MOVEMENT * 1000) && _LedsON) {
 		log_d("[%d] Turning off the leds", now);
-		digitalWrite(PIN_RELAY, HIGH);
+		digitalWrite(PIN_RELAY, TURN_OFF_RELY);
 		_LedsON=false;
 		_updateNeeded = true;
+#ifdef WITH_SCREEN
 		u8g2.setPowerSave(1);
+#endif
 
 		//check if any effect must be deleted on turn off
 		auto it = _TheEffects.begin();
@@ -362,21 +393,21 @@ void loop()
 			}
 		}
 	}
-	else if((now - _LastMovement) < (TIME_ON_AFTER_MOVEMENT * 1000)) {
-		if(!_LedsON) {
-			log_d("[%d] Turning on the leds", now);
-			_lastUpdate = now;
-			_updateNeeded = true; //només 1 cop
-			u8g2.begin();
-
-			CreateRandomEffect();
-		}
+	else if(_movementDetected && !_LedsON) {
+		_movementDetected=false;
+		log_d("[%d] Turning on the leds", now);
+		_lastUpdate = now;
+		_updateNeeded = true; //només 1 cop
+#ifdef WITH_SCREEN
+		u8g2.begin();
+#endif
+		CreateRandomEffect();
 		_LedsON=true;
-		digitalWrite(PIN_RELAY, LOW);
+		digitalWrite(PIN_RELAY, TURN_ON_RELY);
 	}
 
 	if(_LedsON && (now - _lastUpdate) >= UPDATE_EVERY_MS) {
-		//_lastUpdate = millis();
+		_lastUpdate = now;
 		auto it=_TheEffects.begin();
 		while(it!=_TheEffects.end()) {
 			(*it)->Draw(_TheLeds);

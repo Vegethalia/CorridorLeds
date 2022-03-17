@@ -1,6 +1,6 @@
 #pragma once
 
-#define NUM_LEDS (960-2) //240 480 720 960
+#define NUM_LEDS (960-2+43) //240 480 720 960
 
 #define PIN_I2C_SDA 21
 #define PIN_I2C_SCL 22
@@ -17,8 +17,14 @@
 #define PIN_BTN_G   18
 #define PIN_BTN_B   26
 
+#define TURN_ON_RELY HIGH
+#define TURN_OFF_RELY LOW
+
 enum LED_EFFECT { PULSE, BIDIR_PULSE, MOVING_BANNER, RAINBOW, MAX_EFFECT=RAINBOW };
 
 #define DEF_PULSE_WIDTH 24
 #define DEF_PULSE_POWER 246
 #define DEF_PULSE_SPEED 1.0f
+#define MAX_PULSE_SPEED 7.0f
+
+#define TARGET_CURRENT 1100 //max milliamps
