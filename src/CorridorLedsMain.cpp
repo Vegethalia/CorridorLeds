@@ -3,11 +3,13 @@
 #include <Wire.h>
 #include <FS.h>
 #include <WiFi.h>
+#include <PubSubClient.h>
+#include <NTPClient.h>
 #include <FastLED.h>
 #include "SharedUtils/OtaUpdater.h"
 #include "mykeys.h" //header containing sensitive information. Not included in repo. You will need to define the missing constants.
 #include <list>
-
+#include "SharedUtils/Utils.h"
 #include "defines.h"
 #include "EffectStyles.h"
 #include "LedEffects.h"
@@ -36,16 +38,24 @@ CRGBArray<NUM_LEDS>  _TheLeds;
 unsigned long _lastUpdate=0;
 bool _updateNeeded=false;
 
-OtaUpdater _OTA;
+OtaUpdater    _OTA;
+PubSubClient  _ThePubSub;
+WiFiClient    _TheWifi;
+WiFiUDP       _TheWifi4UDP;
+NTPClient     _TheNTPClient(_TheWifi4UDP);
 
 uint32_t _numCicles=0;
 float    _fps=0;
+uint32_t _lastTimeSent = 0;
 
 bool     _LedsON=false;
 volatile bool     _movementDetected=false;
 volatile uint32_t _LastMovement=0;
 uint32_t _LastCheck4Wifi=0;
 uint32_t _LastPowerMilliamps=0;
+bool     _forceLedsON = false;
+uint32_t _IntensityMAmps = DEF_TARGET_CURRENT;
+uint32_t _Intensity = DEF_TARGET_INTENSITY;
 
 //LED_EFFECT _TheEffect = RGB_BKG;
 LedEffect::StatusConfig _TheGlobalLedConfig;
@@ -60,6 +70,10 @@ std::list< std::unique_ptr < LedEffect>> _TheEffects;
 bool Connect2WiFi();
 //Repaints the screen
 void PrintScreen();
+//Connects to the MQTT broquer if not connected.
+void Connect2MQTT();
+//PubSubClient callback for received messages
+void PubSubCallback(char* pTopic, uint8_t* pData, unsigned int dalaLength);
 
 volatile uint32_t _DebounceTimer = 0;
 void IRAM_ATTR ButtonPressed()
@@ -232,11 +246,70 @@ bool Connect2WiFi()
 		}
 		else {
 			log_d("WiFi CONNECTED!");
+			_TheNTPClient.begin();
+			_TheNTPClient.setTimeOffset(3600);
 			return true;
 		}
 	}
 	return false; //Too soon to retry, wait.
 }
+
+void Connect2MQTT()
+{
+	if(!_ThePubSub.connected()) {
+		_ThePubSub.setClient(_TheWifi);
+		_ThePubSub.setServer(MQTT_BROKER, MQTT_PORT);
+		_ThePubSub.setCallback(PubSubCallback);
+		if(!_ThePubSub.connect("ESP32_CorridorLeds")) {
+			log_d("ERROR!! PubSubClient was not able to connect to PiRuter!!");
+		}
+		else { //Subscribe to the feeds
+			log_d("PubSubClient connected to PiRuter MQTT broker!!");
+			if(!_ThePubSub.subscribe(TOPIC_INTENSITY)) {
+				log_d("ERROR!! PubSubClient was not able to suibscribe to [%s]", TOPIC_INTENSITY);
+			}
+			if(!_ThePubSub.subscribe(TOPIC_ALWAYS_ON)) {
+				log_d("ERROR!! PubSubClient was not able to suibscribe to [%s]", TOPIC_ALWAYS_ON);
+			}
+		}
+	}
+}
+
+void PubSubCallback(char* pTopic, uint8_t* pData, unsigned int dataLenght)
+{
+	std::string theTopic(pTopic);
+	std::string theMsg;
+
+	for(uint16_t i = 0; i < dataLenght; i++) {
+		theMsg.push_back((char)pData[i]);
+	}
+	log_d("Received message from [%s]: [%s]", theTopic.c_str(), theMsg.c_str());
+
+	if(theTopic.find(TOPIC_ALWAYS_ON) != std::string::npos) {
+		if(theMsg == "SI") {
+			_forceLedsON = true;
+		}
+		else {
+			log_d("Turning off the LEDS...");
+			_forceLedsON = false;
+		}
+	}
+	else if(theTopic.find(TOPIC_INTENSITY) != std::string::npos) {
+		auto origIntensity=_Intensity;
+		auto newIntensity = min(std::atoi(theMsg.c_str()), MAX_TARGET_INTENSITY);
+		if(newIntensity < MIN_TARGET_INTENSITY) {
+			newIntensity = MIN_TARGET_INTENSITY;
+		}
+		if(newIntensity != origIntensity) {
+			log_d("Changing led intensity=%d", newIntensity);
+			_Intensity = newIntensity;
+//			FastLED.setMaxPowerInVoltsAndMilliamps(5, _IntensityMAmps);              // FastLED power management set at 5V, 1500mA
+			_ThePubSub.publish(TOPIC_INTENSITY, Utils::string_format("%d", _Intensity).c_str(), true);
+			_ThePubSub.publish(TOPIC_DEBUG, Utils::string_format("Updated intensity=%d", _Intensity).c_str(), true);
+		}
+	}
+}
+
 
 void setup()
 {
@@ -264,8 +337,8 @@ void setup()
 
 	FastLED.addLeds<WS2812B, DATA_PIN, GRB>(_TheLeds, NUM_LEDS);
 	//	FastLED.setBrightness(4);
-	FastLED.setTemperature(ColorTemperature::DirectSunlight);
-	FastLED.setMaxPowerInVoltsAndMilliamps(5, TARGET_CURRENT);              // FastLED power management set at 5V, 1500mA
+	//FastLED.setTemperature(ColorTemperature::DirectSunlight);
+	//FastLED.setMaxPowerInVoltsAndMilliamps(5, _IntensityMAmps);              // FastLED power management set at 5V, 1500mA
 	random16_set_seed(millis());
 
 	// for(int i = 0; i < NUM_LEDS/2; i++) {
@@ -286,13 +359,6 @@ void setup()
 	 std::unique_ptr<LedEffect_ConstantBackground> effect1 = std::unique_ptr<LedEffect_ConstantBackground>(new LedEffect_ConstantBackground());
 	 effect1->SetConfig(&_TheGlobalLedConfig);
 	 _TheEffects.push_back(std::move(effect1));
-
-	// AddPulseEffect(0.50f, 64);  //yellow
-	// AddPulseEffect(0.75f, 128); //aqua
-	// AddPulseEffect(1.00f, 224); //pink
-	// AddPulseEffect(1.75f, 0);   //red
-	// AddPulseEffect(3.00f, 96);  //green
-	//AddBiPulseEffect(3.00f, 224);
 
 	// std::unique_ptr<LedEffect_Fire2012> effectFire = std::unique_ptr<LedEffect_Fire2012>(new LedEffect_Fire2012());
 	// effectFire->SetConfig(&_TheGlobalLedConfig);
@@ -372,8 +438,14 @@ void loop()
 		PrintScreen();
 		_updateNeeded = false;
 	}
+	if(WiFi.isConnected()) {
+		_TheNTPClient.update();
+		if(!_ThePubSub.connected()) {
+			Connect2MQTT();
+		}
+	}
 
-	if((now - _LastMovement) > (TIME_ON_AFTER_MOVEMENT * 1000) && _LedsON) {
+	if((now - _LastMovement) > (TIME_ON_AFTER_MOVEMENT * 1000) && _LedsON && !_forceLedsON) {
 		log_d("[%d] Turning off the leds", now);
 		digitalWrite(PIN_RELAY, TURN_OFF_RELY);
 		_LedsON=false;
@@ -393,7 +465,7 @@ void loop()
 			}
 		}
 	}
-	else if(_movementDetected && !_LedsON) {
+	else if(!_LedsON && (_forceLedsON || _movementDetected)) {
 		_movementDetected=false;
 		log_d("[%d] Turning on the leds", now);
 		_lastUpdate = now;
@@ -420,24 +492,27 @@ void loop()
 			}
 		}
 
-		FastLED.show();
+		FastLED.show(_Intensity);
 
 		_numCicles++;
 		if(_numCicles == FRAMES_FPS) {
-			uint32_t totalTime = (millis() - _lastUpdate);
+			uint32_t totalTime = (now - _lastUpdate);
 			_fps = totalTime / (float)FRAMES_FPS;
 			log_d("Update time=%3.1fms", _fps);
+			//_ThePubSub.publish(TOPIC_DEBUG, Utils::string_format("Update time=%3.1fms", _fps).c_str(), true);
 			_numCicles=0;
 			//_totalTime=0;
-			_lastUpdate=millis();
+			_lastUpdate=now;
 
 			PrintScreen();
 			_updateNeeded = false;
 		}
 	}
- 	//FastLED.delay(1);
-	// Fire2012(); // run simulation frame
-
-	// FastLED.show(); // display this frame
-	// FastLED.delay(1000 / FRAMES_PER_SECOND);
+	if(_ThePubSub.connected()) {
+		if((now - _lastTimeSent) > UPDATE_TIME_EVERY_SECS * 1000) {
+			_ThePubSub.publish(TOPIC_TIME, _TheNTPClient.getFormattedTime().c_str(), true);
+			_lastTimeSent = now;
+		}
+		_ThePubSub.loop(); //allow the pubsubclient to process incoming messages
+	}
 }
