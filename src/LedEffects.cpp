@@ -20,7 +20,7 @@ void LedEffect_ConstantBackground::Draw(CRGBArray<NUM_LEDS>& theLeds)
 	if(!_pTheConfig) {
 		return;
 	}
-	theLeds(0, NUM_LEDS - 1) = CRGB(_pTheConfig->bckR, _pTheConfig->bckG, _pTheConfig->bckB);
+	theLeds(0, NUM_LEDS - 1) = _pTheConfig->bckColor;
 }
 
 void LedEffect_ConstantBackground::Advance()

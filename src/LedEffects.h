@@ -9,10 +9,8 @@ class LedEffect
 public:
 	///Struct amb la config global de l'applicació
 	struct StatusConfig {
-		uint8_t  bckR = 1; //8,4,16=lila
-		uint8_t  bckG = 1;
-		uint8_t  bckB = 1;
-
+		CRGB bckColor;
+		uint8_t bckBrightness=DEF_BACK_BRIGHTNESS;
 		uint8_t maxPulsePower=DEF_PULSE_POWER;
 	};
 
