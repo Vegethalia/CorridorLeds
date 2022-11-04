@@ -155,6 +155,21 @@ public:
 	// virtual void Reset() override;
 };
 
+class LedEffect_HalfBidirectionalPulse : public LedEffect_MovingPulse
+{
+public:
+	LedEffect_HalfBidirectionalPulse(uint8_t hue, float speed = DEF_PULSE_SPEED, uint8_t width = DEF_PULSE_WIDTH, bool additive = true);
+	virtual ~LedEffect_HalfBidirectionalPulse();
+
+public:
+	///Call to draw the current effect into the passed Led Strip
+	virtual void Draw(CRGBArray<NUM_LEDS>& theLeds) override;
+	///Call to reinit the effect to its starting state.
+	///If called after IsFinished is true, the effect will run again.
+	///When implementing it in child classes, remember to set _IsFinished to false.
+	// virtual void Reset() override;
+};
+
 #define COOLING  90 //55
 // SPARKING: What chance (out of 255) is there that a new spark will be lit?
 // Higher chance = more roaring fire.  Lower chance = more flickery fire.

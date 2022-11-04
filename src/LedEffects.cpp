@@ -1,4 +1,5 @@
 #include <FastLED.h>
+#include <vector>
 #include "LedEffects.h"
 
 
@@ -240,6 +241,37 @@ void LedEffect_BidirectionalPulse::Draw(CRGBArray<NUM_LEDS>& theLeds)
 	}
 	DrawAtPos(theLeds, _currentPos, centralInt);
 	DrawAtPos(theLeds, NUM_LEDS - _currentPos, centralInt*0.75);
+}
+
+/////////////////////////////////////////
+/// LedEffect_HalfBidirectionalPulse
+/////////////////////////////////////////
+LedEffect_HalfBidirectionalPulse::LedEffect_HalfBidirectionalPulse(uint8_t hue, float speed, uint8_t width, bool additive)
+	:LedEffect_MovingPulse(hue, speed, width, additive)
+{
+	_currentPos = width / 2;
+	_DeleteOnTurnOff = true;
+}
+
+LedEffect_HalfBidirectionalPulse::~LedEffect_HalfBidirectionalPulse()
+{
+
+}
+
+void LedEffect_HalfBidirectionalPulse::Draw(CRGBArray<NUM_LEDS>& theLeds)
+{
+	if(_IsFinished) {
+		return;
+	}
+	uint8_t centralInt = DEF_PULSE_POWER;
+	if(_pTheConfig) {
+		centralInt = _pTheConfig->maxPulsePower;
+	}
+	DrawAtPos(theLeds, _currentPos, centralInt);
+	DrawAtPos(theLeds, NUM_LEDS - _currentPos, centralInt);
+	if(_currentPos > NUM_LEDS / 2) { //This effect runs to the half and finishes
+		_IsFinished = true;
+	}
 }
 
 /////////////////////////////////////////

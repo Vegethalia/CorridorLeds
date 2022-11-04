@@ -3,6 +3,10 @@
 		{
 			"name": "CorridorLeds",
 			"path": ".."
+		},
+		{
+			"name": "Esp32MicFun",
+			"path": "..\\..\\Esp32MicFun\\Esp32MicFun"
 		}
 	],
 	"settings": {
