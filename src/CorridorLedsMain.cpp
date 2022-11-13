@@ -192,6 +192,13 @@ void AddMovingBanner(float speed, std::vector<uint8_t>& bands)
     _TheEffects.push_back(std::move(effect));
 }
 
+void AddSparksEffect(uint8_t theHue)
+{
+    std::unique_ptr<LedEffect_Sparks> effect = std::unique_ptr<LedEffect_Sparks>(new LedEffect_Sparks(theHue));
+    effect->SetConfig(&_TheGlobalLedConfig);
+    _TheEffects.push_back(std::move(effect));
+}
+
 // Adds a random set of effects to the Effects array
 void CreateRandomEffect()
 {
@@ -199,7 +206,7 @@ void CreateRandomEffect()
     uint8_t combi = 0;
 
     if (millis() < KEEP_FIRST_RAINBOW_FOR) {
-        eff = LED_EFFECT::RAINBOW;
+        eff = LED_EFFECT::SPARKS;
     }
 
     switch (eff) {
@@ -236,6 +243,9 @@ void CreateRandomEffect()
         // AddMovingBanner(2.00f, g_BannerCombinations[combi]);
         AddMovingBanner(random8(DEF_PULSE_SPEED, DEF_PULSE_SPEED * 2), g_BannerCombinations[combi]);
         // _ThePubSub.publish(TOPIC_DEBUG, "MovingBanner", true);
+        break;
+    case LED_EFFECT::SPARKS:
+        AddSparksEffect(random8());
         break;
     case LED_EFFECT::RAINBOW:
         _TheGlobalLedConfig.bckColor.setRGB(5, 5, 5);
@@ -596,8 +606,7 @@ void PubSubCallback(char* pTopic, uint8_t* pData, unsigned int dataLenght)
                     _LastCustomBackColor = _TheGlobalLedConfig.bckColor;
                     _ThePubSub.publish(TOPIC_DEBUG, Utils::string_format("Custom Effect. %s Background. BckHue=%d", pStyle, backHue).c_str(), true);
                 }
-            }
-            else if (strcmp(pEffect, "rainbow") == 0) {
+            } else if (strcmp(pEffect, "rainbow") == 0) {
                 CleanEffects();
                 _TheCustomEffect = LED_EFFECT::RAINBOW;
                 if (_LedsON) {
