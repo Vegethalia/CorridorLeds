@@ -270,11 +270,11 @@ LedEffect_Sparks::LedEffect_Sparks(uint8_t theHue, float newSparkThreshold, floa
 {
     _TheHUE = theHue;
     _newSparkThreshold = newSparkThreshold;
-    _maxSpeed = maxSpeed;
+    _maxSpeed = (uint8_t)(maxSpeed * 100.0);
     _brightnessDecay = brightnessDecay;
     _DeleteOnTurnOff = true;
 
-    _numSparks = 1 + (NUM_LEDS / 10);
+    _numSparks = 1 + (NUM_LEDS / 20);
     _TheSparks.resize(_numSparks, 0.0f);
     _TheSparksPos.resize(_numSparks, 0.0f);
     _ThePixelValue.resize(NUM_LEDS, 0.0f);
@@ -290,35 +290,24 @@ void LedEffect_Sparks::Draw(CRGBArray<NUM_LEDS>& theLeds)
         return;
     }
 
-    uint8_t sparkHue = 127; // 0.5 * 255;
-
-    // uint8_t maxv = 0;
-    // float maxf = 0.0;
     for (int i = 0; i < NUM_LEDS; i++) {
-        float f = (_ThePixelValue[i] * _ThePixelValue[i] * 10.0) * 255;
+        float f = (_ThePixelValue[i] * _ThePixelValue[i] * 5.0) * 255;
         uint8_t v = f > 255.0 ? 255 : (uint8_t)f;
-        theLeds[i] = CHSV(sparkHue, 255, v);
-        // log_v("Pixel[%d]=%d", i, v);
-        // if (v > maxv) {
-        //     maxv = v;
-        // }
-        // if (pixels[i] > maxf) {
-        //     maxf = pixels[i];
-        // }
+        theLeds[i] = CHSV(_TheHUE, 255, v);
     }
 }
 
 void LedEffect_Sparks::Advance()
 {
-    float delta = 6; // po ejemplo
+    float delta = 4; // com mes gran, mes rapid aniram les espurnes "calentes"
 
     for (int i = 0; i < NUM_LEDS; i++) {
-        _ThePixelValue[i] *= 0.9f;
+        _ThePixelValue[i] *= 0.92f;
     }
 
     for (int i = 0; i < _numSparks; i++) {
         if (_TheSparks[i] >= -_newSparkThreshold && _TheSparks[i] <= _newSparkThreshold) {
-            _TheSparks[i] = (_maxSpeed / 2) - (random(0, _maxSpeed * 100)) / 100.0;
+            _TheSparks[i] = ((int)(_maxSpeed / 2) - (int)random8(_maxSpeed)) / 100.0; // random entre -maxspeed/2 i maxspeed/2, entre 100.0
             _TheSparksPos[i] = random16(NUM_LEDS);
         }
 
@@ -333,7 +322,7 @@ void LedEffect_Sparks::Advance()
             _TheSparksPos[i] = NUM_LEDS - 1;
         }
 
-        _ThePixelValue[(int)floor(_TheSparksPos[i])] += _TheSparks[i];
+        _ThePixelValue[(int)floor(_TheSparksPos[i])] += _TheSparks[i]; // com mes "calent" més ràpid
     }
 }
 

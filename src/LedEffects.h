@@ -169,7 +169,7 @@ public:
 class LedEffect_Sparks : public LedEffect {
 public:
     // Initializes the sparks effect. It uses the theHue to determine the color of the sparks.
-    LedEffect_Sparks(uint8_t theHue, float newSparkThreshold = 0.04f, float maxSpeed = 0.4f, float brightnessDecay = 0.99f);
+    LedEffect_Sparks(uint8_t theHue, float newSparkThreshold = 0.04f, float maxSpeed = 1.25f, float brightnessDecay = 0.995f);
     virtual ~LedEffect_Sparks();
 
 public:
@@ -187,7 +187,7 @@ protected:
     std::vector<float> _TheSparksPos;
     std::vector<float> _ThePixelValue;
     float _newSparkThreshold;
-    float _maxSpeed;
+    uint8_t _maxSpeed;
     float _brightnessDecay;
     uint16_t _numSparks;
     uint8_t _TheHUE;

@@ -32,7 +32,7 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, PIN_I2C_SCL, PIN_I2C_SDA);
 
 #define DEBOUNCE_TIME 250 // Filtre anti-rebond (debouncer)
 
-#define RETRY_WIFI_EVERY_SECS 60
+#define RETRY_WIFI_EVERY_SECS 120
 #define PROCESS_OTA_EVERY_MS 2500
 #define KEEP_FIRST_RAINBOW_FOR (1 * 60 * 1000) // when turning on the micro. the first effect will allways be the rainbow
 
@@ -55,7 +55,7 @@ volatile uint32_t _LastMovement = 0;
 volatile bool _addHalfPulse = false;
 
 volatile bool _LedsON = false;
-uint32_t _LastCheck4Wifi = 0;
+// uint32_t _LastCheck4Wifi = 0;
 uint32_t _LastPowerMilliamps = 0;
 uint32_t _LastSleep = 0;
 bool _forceLedsON = false;
@@ -69,6 +69,11 @@ LED_EFFECT _TheCustomEffect = LED_EFFECT::CONSTANT_BKG;
 LedEffect::StatusConfig _TheGlobalLedConfig;
 std::list<std::unique_ptr<LedEffect>> _TheEffects;
 CRGB _LastCustomBackColor(5, 5, 5);
+
+// TASK RELATED
+TaskHandle_t _wifiReconnectTaskHandle;
+bool _Connected2Wifi = false;
+
 //
 // Advanced declarations
 //
@@ -280,30 +285,30 @@ void RecreateCustomEffect()
     }
 }
 
-bool Connect2WiFi()
-{
-    if (WiFi.isConnected()) {
-        return false; // false because was already connected
-    }
-    auto temps = millis() / 1000;
+// bool Connect2WiFi()
+// {
+//     if (WiFi.isConnected()) {
+//         return false; // false because was already connected
+//     }
+//     auto temps = millis() / 1000;
 
-    if (temps < 3 || (temps - _LastCheck4Wifi) >= RETRY_WIFI_EVERY_SECS) {
-        _LastCheck4Wifi = temps;
-        log_d("[%d] Trying WiFi connection to [%s]", millis(), WIFI_SSID);
-        auto err = WiFi.begin(WIFI_SSID, WIFI_PASS); // FROM mykeys.h
-        err = (wl_status_t)WiFi.waitForConnectResult();
-        if (err != wl_status_t::WL_CONNECTED) {
-            log_d("WiFi connection FAILED! Error=[%d]. Will retry later", err);
-            return false;
-        } else {
-            log_d("WiFi CONNECTED!");
-            _TheNTPClient.begin();
-            _TheNTPClient.setTimeOffset(3600);
-            return true;
-        }
-    }
-    return false; // Too soon to retry, wait.
-}
+//     if (temps < 3 || (temps - _LastCheck4Wifi) >= RETRY_WIFI_EVERY_SECS) {
+//         _LastCheck4Wifi = temps;
+//         log_d("[%d] Trying WiFi connection to [%s]", millis(), WIFI_SSID);
+//         auto err = WiFi.begin(WIFI_SSID, WIFI_PASS); // FROM mykeys.h
+//         err = (wl_status_t)WiFi.waitForConnectResult();
+//         if (err != wl_status_t::WL_CONNECTED) {
+//             log_d("WiFi connection FAILED! Error=[%d]. Will retry later", err);
+//             return false;
+//         } else {
+//             log_d("WiFi CONNECTED!");
+//             _TheNTPClient.begin();
+//             _TheNTPClient.setTimeOffset(3600);
+//             return true;
+//         }
+//     }
+//     return false; // Too soon to retry, wait.
+// }
 
 void Connect2MQTT()
 {
@@ -350,6 +355,53 @@ void CleanEffects()
     }
 }
 
+void vTaskWifiReconnect(void* pvParameters)
+{
+    bool reconnected = false;
+    uint32_t LastCheck4Wifi = 0;
+
+    _OTA.Setup();
+    WiFi.mode(WIFI_STA);
+
+    while (true) {
+        _Connected2Wifi = false;
+        reconnected = false;
+        if (WiFi.isConnected()) {
+            _Connected2Wifi = true;
+        } else {
+            auto temps = millis() / 1000;
+
+            if ((temps > 10 && temps < 30) || (temps - LastCheck4Wifi) >= RETRY_WIFI_EVERY_SECS) {
+                LastCheck4Wifi = temps;
+                log_i("[%d] Trying WiFi connection to [%s]", millis(), WIFI_SSID);
+                auto err = WiFi.begin(WIFI_SSID, WIFI_PASS); // FROM mykeys.h
+                err = (wl_status_t)WiFi.waitForConnectResult();
+                if (err != wl_status_t::WL_CONNECTED) {
+                    log_e("WiFi connection FAILED! Error=[%d]. Will retry later", err);
+                } else {
+                    log_i("WiFi CONNECTED!");
+                    _TheNTPClient.begin();
+                    _TheNTPClient.setTimeOffset(3600);
+                    _Connected2Wifi = true;
+                    reconnected = true;
+                }
+            }
+        }
+        if (reconnected) {
+            _OTA.Begin();
+        }
+        if (_Connected2Wifi) {
+            _ThePubSub.loop(); // allow the pubsubclient to process incoming messages
+            _OTA.Process();
+            _TheNTPClient.update();
+            if (!_ThePubSub.connected()) {
+                Connect2MQTT();
+            }
+        }
+        delay(100);
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -390,11 +442,13 @@ void setup()
     // attachInterrupt(PIN_PIR, MovementDetected, RISING);
     attachInterrupt(PIN_DOPPLER, MovementDetectedDoppler, CHANGE);
 
-    _OTA.Setup();
-    WiFi.mode(WIFI_STA);
-    if (Connect2WiFi()) { // Recheck wifi connection. Returns true when wifi was down and now is up
-        _OTA.Begin();
-    }
+    xTaskCreate(vTaskWifiReconnect, "Wifi Reconnect", 3072, nullptr, 3, &_wifiReconnectTaskHandle);
+
+    // _OTA.Setup();
+    // WiFi.mode(WIFI_STA);
+    // if (Connect2WiFi()) { // Recheck wifi connection. Returns true when wifi was down and now is up
+    //     _OTA.Begin();
+    // }
 
     // auto err = gpio_wakeup_enable((gpio_num_t)PIN_DOPPLER, GPIO_INTR_HIGH_LEVEL);
     // log_d("gpio_wakeup_enable returned [%d]", err);
@@ -415,22 +469,22 @@ void loop()
         _sleeping = false;
     }
 
-    // now<CHECK_FOR_OTA_TIME &&
-    if ((now - _LastCheck4Wifi) > PROCESS_OTA_EVERY_MS) {
-        if (Connect2WiFi()) { // Recheck wifi connection. Returns true when wifi was down and now is up
-            _OTA.Begin();
-        }
-        if (WiFi.isConnected()) {
-            _OTA.Process();
-        }
-        _LastCheck4Wifi = now;
-    }
-    if (WiFi.isConnected()) {
-        _TheNTPClient.update();
-        if (!_ThePubSub.connected()) {
-            Connect2MQTT();
-        }
-    }
+    // // now<CHECK_FOR_OTA_TIME &&
+    // if ((now - _LastCheck4Wifi) > PROCESS_OTA_EVERY_MS) {
+    //     if (Connect2WiFi()) { // Recheck wifi connection. Returns true when wifi was down and now is up
+    //         _OTA.Begin();
+    //     }
+    //     if (WiFi.isConnected()) {
+    //         _OTA.Process();
+    //     }
+    //     _LastCheck4Wifi = now;
+    // }
+    // if (WiFi.isConnected()) {
+    //     _TheNTPClient.update();
+    //     if (!_ThePubSub.connected()) {
+    //         Connect2MQTT();
+    //     }
+    // }
 
     if (_forceLedsOFF || ((now - _LastMovement) > (TIME_ON_AFTER_MOVEMENT * 1000) && _LedsON && !_forceLedsON)) {
         _LedsON = false;
@@ -507,13 +561,13 @@ void loop()
         //		goSleep=true;
     }
 
-    if (_ThePubSub.connected()) {
-        if ((now - _lastTimeSent) > UPDATE_TIME_EVERY_SECS * 1000) {
-            _ThePubSub.publish(TOPIC_TIME, _TheNTPClient.getFormattedTime().c_str(), true);
-            _lastTimeSent = now;
-        }
-        _ThePubSub.loop(); // allow the pubsubclient to process incoming messages
-    }
+    // if (_ThePubSub.connected() && _Connected2Wifi) {
+    //     if ((now - _lastTimeSent) > UPDATE_TIME_EVERY_SECS * 1000) {
+    //         _ThePubSub.publish(TOPIC_TIME, _TheNTPClient.getFormattedTime().c_str(), true);
+    //         _lastTimeSent = now;
+    //     }
+    //     _ThePubSub.loop(); // allow the pubsubclient to process incoming messages
+    // }
     if (goSleep) {
         //		_sleeping=true;
         esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_DOPPLER, 1);
